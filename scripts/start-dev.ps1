@@ -40,14 +40,35 @@ $backendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' 
 Write-Host 'Starting frontend on http://localhost:5173'
 $frontendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $FrontendDir -NoNewWindow -PassThru
 
+$isWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
+
+function Stop-ProcessTree {
+    param (
+        [System.Diagnostics.Process]$Process,
+        [string]$Name
+    )
+
+    if (-not $Process -or $Process.HasExited) {
+        return
+    }
+
+    try {
+        if ($isWindows) {
+            & taskkill.exe /T /F /PID $Process.Id | Out-Null
+        }
+        else {
+            $Process.Kill()
+        }
+    }
+    catch {
+        Write-Warning "Failed to stop $Name process: $($_.Exception.Message)"
+    }
+}
+
 $shutdownScript = {
     Write-Host 'Shutting down...'
-    if ($backendProcess -and -not $backendProcess.HasExited) {
-        $backendProcess.Kill()
-    }
-    if ($frontendProcess -and -not $frontendProcess.HasExited) {
-        $frontendProcess.Kill()
-    }
+    Stop-ProcessTree -Process $backendProcess -Name 'backend'
+    Stop-ProcessTree -Process $frontendProcess -Name 'frontend'
 }
 
 $null = Register-EngineEvent -SourceIdentifier ConsoleBreak -Action $shutdownScript
