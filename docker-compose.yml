@@ -4,7 +4,7 @@ services:
   db:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: changeme
+      MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: trading_journal
       MYSQL_USER: trader
       MYSQL_PASSWORD: 123456
