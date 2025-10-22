@@ -24,7 +24,7 @@ services:
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: trader
-      DB_PASSWORD: 123456
+      DB_PASSWORD: changeme
       DB_NAME: trading_journal
       JWT_SECRET: supersecretkey
       JWT_REFRESH_SECRET: anothersecret
