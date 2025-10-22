@@ -63,7 +63,8 @@ This starts MySQL, the Express API and the Vite preview server. Database schema 
 
 ## Scripts
 
-- `scripts/start-dev.sh` — install dependencies if needed and start frontend/backend together.
+- `scripts/start-dev.sh` — install dependencies if needed and start frontend/backend together (macOS/Linux).
+- `scripts/start-dev.ps1` — PowerShell equivalent of the start script for Windows users (run with `pwsh -File .\scripts\start-dev.ps1`).
 - `scripts/deploy.sh` — build artefacts and launch the Docker Compose stack.
 - `scripts/backup-db.sh` — create a MySQL dump using environment variables.
 
