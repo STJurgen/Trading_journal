@@ -34,11 +34,25 @@ function Install-Dependencies {
 Install-Dependencies -Directory $BackendDir -Name 'backend' -NpmCommand $NpmCommand
 Install-Dependencies -Directory $FrontendDir -Name 'frontend' -NpmCommand $NpmCommand
 
-Write-Host 'Starting backend on http://localhost:5000'
-$backendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $BackendDir -NoNewWindow -PassThru
+function Start-NpmDevServer {
+    param (
+        [string]$Directory,
+        [string]$Name,
+        [int]$Port
+    )
 
-Write-Host 'Starting frontend on http://localhost:5173'
-$frontendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $FrontendDir -NoNewWindow -PassThru
+    Write-Host "Starting $Name on http://localhost:$Port"
+
+    try {
+        return Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $Directory -NoNewWindow -PassThru
+    }
+    catch {
+        throw "Failed to launch $Name dev server: $($_.Exception.Message)"
+    }
+}
+
+$backendProcess = Start-NpmDevServer -Directory $BackendDir -Name 'backend' -Port 5000
+$frontendProcess = Start-NpmDevServer -Directory $FrontendDir -Name 'frontend' -Port 5173
 
 $isWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 
@@ -57,7 +71,14 @@ function Stop-ProcessTree {
             & taskkill.exe /T /F /PID $Process.Id | Out-Null
         }
         else {
-            $Process.Kill()
+            $killWithTree = $Process.GetType().GetMethod('Kill', [Type[]]@([bool]))
+
+            if ($killWithTree) {
+                $killWithTree.Invoke($Process, @($true)) | Out-Null
+            }
+            else {
+                $Process.Kill()
+            }
         }
     }
     catch {
@@ -65,18 +86,65 @@ function Stop-ProcessTree {
     }
 }
 
-$shutdownScript = {
+
+$script:shutdownInvoked = $false
+$script:shutdownReason = $null
+function Invoke-Shutdown {
+    param (
+        [string]$Reason = 'cleanup'
+    )
+
+    if ($script:shutdownInvoked) {
+        return
+    }
+
+    $script:shutdownInvoked = $true
+    $script:shutdownReason = $Reason
     Write-Host 'Shutting down...'
     Stop-ProcessTree -Process $backendProcess -Name 'backend'
     Stop-ProcessTree -Process $frontendProcess -Name 'frontend'
 }
 
-$null = Register-EngineEvent -SourceIdentifier ConsoleBreak -Action $shutdownScript
+$eventSubscriptions = @()
+$eventSubscriptions += Register-EngineEvent -SourceIdentifier 'PowerShell.Exiting' -Action { & $function:Invoke-Shutdown -Reason 'engine-exiting' }
+$eventSubscriptions += Register-ObjectEvent -InputObject ([Console]::CancelKeyPress) -EventName 'CancelKeyPress' -SourceIdentifier 'ConsoleCancel' -Action {
+    param($sender, $eventArgs)
+
+    $eventArgs.Cancel = $true
+    & $function:Invoke-Shutdown -Reason 'signal'
+}
 
 try {
-    Wait-Process -Id $backendProcess.Id, $frontendProcess.Id
+    Wait-Process -InputObject @($backendProcess, $frontendProcess)
 }
 finally {
-    & $shutdownScript
-    Unregister-Event -SourceIdentifier ConsoleBreak -ErrorAction SilentlyContinue
+    Invoke-Shutdown
+
+    foreach ($subscription in $eventSubscriptions) {
+        try {
+            Unregister-Event -SubscriptionId $subscription.Id -ErrorAction Stop
+        }
+        catch {
+            # ignore cleanup failures
+        }
+    }
+
+    Get-Event -SourceIdentifier 'ConsoleCancel','PowerShell.Exiting' -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue
 }
+
+if ($script:shutdownReason -eq 'signal' -or $script:shutdownReason -eq 'engine-exiting') {
+    exit 0
+}
+
+$backendExitCode = if ($backendProcess -and $backendProcess.HasExited) { $backendProcess.ExitCode } else { 0 }
+$frontendExitCode = if ($frontendProcess -and $frontendProcess.HasExited) { $frontendProcess.ExitCode } else { 0 }
+
+if ($backendExitCode -ne 0) {
+    exit $backendExitCode
+}
+
+if ($frontendExitCode -ne 0) {
+    exit $frontendExitCode
+}
+
+exit 0
