@@ -28,7 +28,7 @@ cd ../frontend && npm install
 
 ### 2. Configure environment
 
-Create `backend/.env` (a template is included) and set database credentials plus JWT secrets. Optional: create `frontend/.env` with `VITE_API_URL=http://localhost:5000/api`.
+Copy `backend/.env.example` to `backend/.env` and set database credentials plus JWT secrets. Optional: create `frontend/.env` with `VITE_API_URL=http://localhost:5000/api`.
 
 ### 3. Run the app locally
 
