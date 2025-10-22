@@ -5,11 +5,29 @@ $RootDir = Resolve-Path (Join-Path $PSScriptRoot '..')
 $BackendDir = Join-Path $RootDir 'backend'
 $FrontendDir = Join-Path $RootDir 'frontend'
 
-try {
-    $NpmCommand = (Get-Command npm -ErrorAction Stop).Source
-} catch {
+function Get-NpmExecutable {
+    $candidateNames = @('npm.cmd', 'npm.exe', 'npm')
+    foreach ($name in $candidateNames) {
+        $command = Get-Command $name -ErrorAction SilentlyContinue
+        if (-not $command) {
+            continue
+        }
+
+        $path = $command.Path
+        if (-not $path) {
+            continue
+        }
+
+        $extension = [System.IO.Path]::GetExtension($path)
+        if ($extension -in @('.cmd', '.exe')) {
+            return $path
+        }
+    }
+
     throw 'npm is not available on the PATH. Install Node.js and ensure npm can be invoked from PowerShell.'
 }
+
+$NpmCommand = Get-NpmExecutable
 
 function Install-Dependencies {
     param (
@@ -34,11 +52,27 @@ function Install-Dependencies {
 Install-Dependencies -Directory $BackendDir -Name 'backend' -NpmCommand $NpmCommand
 Install-Dependencies -Directory $FrontendDir -Name 'frontend' -NpmCommand $NpmCommand
 
+function Start-NpmProcess {
+    param (
+        [string]$WorkingDirectory,
+        [string[]]$Arguments
+    )
+
+    $extension = [System.IO.Path]::GetExtension($NpmCommand)
+    if ($extension -ieq '.cmd') {
+        $joinedArgs = ($Arguments -join ' ')
+        $cmdArguments = @('/c', "`"$NpmCommand`" $joinedArgs")
+        return Start-Process -FilePath $env:ComSpec -ArgumentList $cmdArguments -WorkingDirectory $WorkingDirectory -NoNewWindow -PassThru
+    }
+
+    return Start-Process -FilePath $NpmCommand -ArgumentList $Arguments -WorkingDirectory $WorkingDirectory -NoNewWindow -PassThru
+}
+
 Write-Host 'Starting backend on http://localhost:5000'
-$backendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $BackendDir -NoNewWindow -PassThru
+$backendProcess = Start-NpmProcess -WorkingDirectory $BackendDir -Arguments @('run','dev')
 
 Write-Host 'Starting frontend on http://localhost:5173'
-$frontendProcess = Start-Process -FilePath $NpmCommand -ArgumentList 'run','dev' -WorkingDirectory $FrontendDir -NoNewWindow -PassThru
+$frontendProcess = Start-NpmProcess -WorkingDirectory $FrontendDir -Arguments @('run','dev')
 
 $isWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 
