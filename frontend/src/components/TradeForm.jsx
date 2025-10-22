@@ -49,11 +49,15 @@ const TradeForm = ({ initialValues, onSubmit, onCancel }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
     const payload = {
-      ...values,
+      asset: values.asset,
+      direction: values.direction,
       quantity: Number(values.quantity),
       entryPrice: Number(values.entryPrice),
-      exitPrice: values.exitPrice ? Number(values.exitPrice) : null,
-      strategyId: values.strategyId || null
+      exitPrice: values.exitPrice === '' ? null : Number(values.exitPrice),
+      strategyId: values.strategyId ? Number(values.strategyId) : null,
+      openedAt: values.openedAt || null,
+      closedAt: values.closedAt || null,
+      notes: values.notes || null
     };
     onSubmit?.(payload);
   };
