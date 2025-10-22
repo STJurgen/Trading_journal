@@ -6,6 +6,7 @@ const api = axios.create({
 
 let accessToken = null;
 let refreshToken = null;
+const unauthorizedListeners = new Set();
 
 api.interceptors.request.use((config) => {
   if (accessToken) {
@@ -20,6 +21,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       accessToken = null;
       refreshToken = null;
+      unauthorizedListeners.forEach((listener) => {
+        try {
+          listener();
+        } catch (listenerError) {
+          console.error('Unauthorized listener failed', listenerError);
+        }
+      });
     }
     return Promise.reject(error);
   }
@@ -35,6 +43,11 @@ export const getRefreshToken = () => refreshToken;
 export const clearAuthTokens = () => {
   accessToken = null;
   refreshToken = null;
+};
+
+export const onUnauthorized = (callback) => {
+  unauthorizedListeners.add(callback);
+  return () => unauthorizedListeners.delete(callback);
 };
 
 export default api;

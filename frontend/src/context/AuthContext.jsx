@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
-import api, { clearAuthTokens, setAuthTokens } from '../services/api';
+import api, { clearAuthTokens, onUnauthorized, setAuthTokens } from '../services/api';
 
 export const AuthContext = createContext({
   user: null,
@@ -78,6 +78,13 @@ export const AuthProvider = ({ children }) => {
       window.localStorage.removeItem(STORAGE_KEY);
     }
   }, [persist]);
+
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(() => {
+      logout();
+    });
+    return unsubscribe;
+  }, [logout]);
 
   const updateUser = useCallback(
     (nextUser) => {
